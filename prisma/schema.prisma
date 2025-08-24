@@ -1,0 +1,209 @@
+// prisma/schema.prisma
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+/* =========================
+   Auth / Users
+   ========================= */
+
+model User {
+  id            String           @id @default(cuid())
+  name          String?
+  email         String           @unique
+  emailVerified DateTime?
+  image         String?
+
+  accounts      Account[]
+  sessions      Session[]
+
+  // App relations
+  progress      UserProgress[]
+  attempts      Attempt[]
+  xpLog         XPTransaction[]
+  streakLog     StreakLog[]
+  heartLog      HeartLedger[]
+
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+/* =========================
+   Course Structure
+   ========================= */
+
+model Course {
+  id       String  @id @default(cuid())
+  slug     String  @unique
+  title    String
+  subject  String          // e.g. "JavaScript"
+  units    Unit[]
+}
+
+model Unit {
+  id        String  @id @default(cuid())
+  courseId  String
+  order     Int
+  title     String
+  lessons   Lesson[]
+
+  course    Course  @relation(fields: [courseId], references: [id])
+
+  @@index([courseId, order])
+}
+
+model Lesson {
+  id          String      @id @default(cuid())
+  unitId      String
+  order       Int
+  title       String
+  xpReward    Int         @default(30)
+  challenges  Challenge[]
+
+  unit        Unit        @relation(fields: [unitId], references: [id])
+
+  @@index([unitId, order])
+  UserProgress UserProgress[]
+}
+
+enum ChallengeType {
+  MCQ
+  TRANSLATE
+  MATCH
+  ORDERING   // renamed from ORDER to avoid keyword issues
+  FILL
+}
+
+model Challenge {
+  id        String         @id @default(cuid())
+  lessonId  String
+  type      ChallengeType
+  prompt    String
+  answer    String         // canonical normalized answer (or JSON)
+  metadata  Json?
+  choices   Choice[]
+
+  lesson    Lesson         @relation(fields: [lessonId], references: [id])
+
+  @@index([lessonId])
+  Attempt Attempt[]
+}
+
+model Choice {
+  id          String     @id @default(cuid())
+  challengeId String
+  label       String
+  isCorrect   Boolean    @default(false)
+
+  challenge   Challenge  @relation(fields: [challengeId], references: [id])
+}
+
+/* =========================
+   Gameplay / Progress
+   ========================= */
+
+model Attempt {
+  id          String     @id @default(cuid())
+  userId      String
+  challengeId String
+  submitted   String
+  correct     Boolean
+  score       Int        @default(0)
+  createdAt   DateTime   @default(now())
+
+  user        User       @relation(fields: [userId], references: [id])
+  challenge   Challenge  @relation(fields: [challengeId], references: [id])
+
+  @@index([userId, challengeId])
+}
+
+model UserProgress {
+  id         String   @id @default(cuid())
+  userId     String
+  lessonId   String
+  mastery    Int      @default(0)   // 0..100
+  completed  Boolean  @default(false)
+  nextReview DateTime?
+
+  user       User     @relation(fields: [userId], references: [id])
+  lesson     Lesson   @relation(fields: [lessonId], references: [id])
+
+  @@unique([userId, lessonId])
+  @@index([userId, nextReview])
+}
+
+model XPTransaction {
+  id        String   @id @default(cuid())
+  userId    String
+  delta     Int
+  reason    String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model StreakLog {
+  id        String   @id @default(cuid())
+  userId    String
+  day       DateTime // 00:00 truncated
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, day])
+}
+
+model HeartLedger {
+  id        String   @id @default(cuid())
+  userId    String
+  delta     Int      // -1 miss, +5 daily refill, etc.
+  reason    String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+}
