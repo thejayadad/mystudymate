@@ -1,9 +1,14 @@
-import React from 'react'
-
-const LogoutBtn = () => {
+import {   signOut } from "@/auth"
+ 
+export default function SignOut() {
   return (
-    <div>LogoutBtn</div>
+    <form
+      action={async () => {
+        "use server"
+        await signOut()
+      }}
+    >
+      <button type="submit">SignOut</button>
+    </form>
   )
-}
-
-export default LogoutBtn
+} 
