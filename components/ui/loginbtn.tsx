@@ -1,9 +1,14 @@
-import React from 'react'
-
-const LoginBtn = () => {
+import { signIn } from "@/auth"
+ 
+export default function SignIn() {
   return (
-    <div>LoginBtn</div>
+    <form
+      action={async () => {
+        "use server"
+        await signIn("google")
+      }}
+    >
+      <button type="submit">Signin with Google</button>
+    </form>
   )
-}
-
-export default LoginBtn
+} 
